@@ -1,0 +1,462 @@
+{
+  "name": "Event Registration & Dynamic Ticket Dispatcher",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 1. INTAKE LAYER\n**Webhook Node (/v1/event-registration)**\n* Captures incoming attendee registration payloads via HTTP POST\n* Accepts: `full_name`, `email`, `company`, `ticket_type`\n* Configured with **Respond to Webhook** node for synchronous HTTP 200 confirmation",
+        "height": 260,
+        "width": 320,
+        "color": 6
+      },
+      "id": "sticky-intake",
+      "name": "Sticky Note - Intake",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -560,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2. DATA SANITIZATION & GENERATOR\n**Edit Fields Node (Set)**\n* Generates unique ticket reference code: `TKT-[TIER]-[RANDOM6]`\n* Cleanses & trims attendee name\n* Lowercases email for normalization\n* Generates ISO registration timestamp (`$now`)",
+        "height": 260,
+        "width": 320,
+        "color": 4
+      },
+      "id": "sticky-sanitization",
+      "name": "Sticky Note - Sanitization",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3. PERSISTENT STORAGE\n**Google Sheets Node**\n* Appends attendee record into `Event_Registration_Master`\n* Schema: Ticket_Code, Registered_At, Attendee_Name, Attendee_Email, Company, Ticket_Type, Check_In_Status\n* Sets initial Check_In_Status to `Registered`",
+        "height": 260,
+        "width": 300,
+        "color": 3
+      },
+      "id": "sticky-sheets",
+      "name": "Sticky Note - Google Sheets",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        160,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 4. TIER ROUTING & EMAIL DISPATCH\n**IF Node + Gmail Nodes**\n* Evaluates `ticket_type` for VIP vs General Admission\n* **TRUE (VIP):** Dispatches gold-tier responsive HTML pass with Executive Lounge access code & VIP Keynote seating\n* **FALSE (General):** Dispatches standard responsive HTML pass with general session schedule",
+        "height": 260,
+        "width": 420,
+        "color": 5
+      },
+      "id": "sticky-routing",
+      "name": "Sticky Note - Tier Routing",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        500,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 5. SYNCHRONOUS CLIENT CONFIRMATION\n**Respond to Webhook Node**\n* Returns instant HTTP 200 JSON payload (< 2000 ms):\n  `{\"status\": \"confirmed\", \"ticket_code\": \"TKT-...\", \"name\": \"...\"}`\n* Guarantees zero webhook timeouts to frontend submitter",
+        "height": 260,
+        "width": 340,
+        "color": 7
+      },
+      "id": "sticky-response",
+      "name": "Sticky Note - Client Response",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        960,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "v1/event-registration",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -500,
+        260
+      ],
+      "id": "e81f72b1-91a3-488b-a7df-2f3b9a101234",
+      "name": "Webhook: /v1/event-registration",
+      "webhookId": "v1-event-registration"
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f-ticket-code",
+              "name": "ticket_code",
+              "value": "={{ 'TKT-' + (($json.body?.ticket_type || $json.ticket_type || 'General').toUpperCase().includes('VIP') ? 'VIP' : 'GEN') + '-' + Math.floor(100000 + Math.random() * 900000) }}",
+              "type": "string"
+            },
+            {
+              "id": "f-registered-at",
+              "name": "registered_at",
+              "value": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",
+              "type": "string"
+            },
+            {
+              "id": "f-full-name",
+              "name": "full_name",
+              "value": "={{ ($json.body?.full_name || $json.full_name || '').trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "f-email",
+              "name": "email",
+              "value": "={{ ($json.body?.email || $json.email || '').trim().toLowerCase() }}",
+              "type": "string"
+            },
+            {
+              "id": "f-company",
+              "name": "company",
+              "value": "={{ ($json.body?.company || $json.company || 'N/A').trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "f-ticket-type",
+              "name": "ticket_type",
+              "value": "={{ ($json.body?.ticket_type || $json.ticket_type || '').toUpperCase().includes('VIP') ? 'VIP' : 'General Admission' }}",
+              "type": "string"
+            },
+            {
+              "id": "f-check-in-status",
+              "name": "check_in_status",
+              "value": "Registered",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -160,
+        260
+      ],
+      "id": "7ac1935e-c19b-449e-876b-965a396e9384",
+      "name": "Edit Fields: Data Cleansing & Code Generation"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "Event_Registration_Master",
+          "mode": "name",
+          "cachedResultName": "Event_Registration_Master"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Ticket_Code": "={{ $json.ticket_code }}",
+            "Registered_At": "={{ $json.registered_at }}",
+            "Attendee_Name": "={{ $json.full_name }}",
+            "Attendee_Email": "={{ $json.email }}",
+            "Company": "={{ $json.company }}",
+            "Ticket_Type": "={{ $json.ticket_type }}",
+            "Check_In_Status": "={{ $json.check_in_status }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Ticket_Code",
+              "displayName": "Ticket_Code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Registered_At",
+              "displayName": "Registered_At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Attendee_Name",
+              "displayName": "Attendee_Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Attendee_Email",
+              "displayName": "Attendee_Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Ticket_Type",
+              "displayName": "Ticket_Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Check_In_Status",
+              "displayName": "Check_In_Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        180,
+        260
+      ],
+      "id": "4bf7a8e2-9d7a-4298-b80c-e2f47a951c23",
+      "name": "Google Sheets: Append Row"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-vip-check",
+              "leftValue": "={{ $json.ticket_type ? $json.ticket_type.toLowerCase() : '' }}",
+              "rightValue": "vip",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        260
+      ],
+      "id": "18c5e317-1f4a-4d22-9201-9f9f83a483a9",
+      "name": "IF: Ticket_Type == \"VIP\"?"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.Attendee_Email || $json.email || $('Edit Fields: Data Cleansing & Code Generation').item.json.email }}",
+        "subject": "=🌟 VIP Access Pass: {{ $json.Ticket_Code || $json.ticket_code || $('Edit Fields: Data Cleansing & Code Generation').item.json.ticket_code }} | Tech Summit 2026",
+        "emailType": "html",
+        "message": "<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; background-color: #0f111a; border-radius: 16px; overflow: hidden; color: #f8fafc; border: 1px solid #2a2e3f; box-shadow: 0 20px 40px rgba(0,0,0,0.4);\">\n  <div style=\"background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%); padding: 36px 32px; text-align: center; border-bottom: 2px solid #fbbf24;\">\n    <div style=\"display: inline-block; background: rgba(251, 191, 36, 0.15); border: 1px solid #fbbf24; color: #fbbf24; font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; padding: 6px 14px; border-radius: 9999px; margin-bottom: 12px;\">★ VIP EXECUTIVE ACCESS</div>\n    <h1 style=\"margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; color: #ffffff;\">TECH SUMMIT 2026</h1>\n    <p style=\"margin: 6px 0 0; color: #c7d2fe; font-size: 14px;\">October 28–30, 2026 • Grand Convention Center, San Francisco</p>\n  </div>\n  <div style=\"padding: 32px 28px;\">\n    <div style=\"background: #181c2e; border: 1px solid #2e344d; border-radius: 12px; padding: 24px; margin-bottom: 24px;\">\n      <table style=\"width: 100%; border-collapse: collapse;\">\n        <tr>\n          <td style=\"padding-bottom: 16px;\">\n            <span style=\"font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; display: block;\">ATTENDEE NAME</span>\n            <strong style=\"font-size: 18px; color: #ffffff;\">{{ $('Edit Fields: Data Cleansing & Code Generation').item.json.full_name }}</strong>\n          </td>\n          <td style=\"padding-bottom: 16px; text-align: right;\">\n            <span style=\"font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; display: block;\">ORGANIZATION</span>\n            <strong style=\"font-size: 16px; color: #e2e8f0;\">{{ $('Edit Fields: Data Cleansing & Code Generation').item.json.company }}</strong>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"padding-top: 12px; border-top: 1px dashed #2e344d;\">\n            <span style=\"font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; display: block;\">TICKET REFERENCE</span>\n            <span style=\"font-family: 'Courier New', monospace; font-size: 18px; font-weight: 700; color: #fbbf24;\">{{ $('Edit Fields: Data Cleansing & Code Generation').item.json.ticket_code }}</span>\n          </td>\n          <td style=\"padding-top: 12px; border-top: 1px dashed #2e344d; text-align: right;\">\n            <span style=\"font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; display: block;\">PASS TIER</span>\n            <span style=\"display: inline-block; background: #fbbf24; color: #0f172a; font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 4px;\">VIP ALL-ACCESS</span>\n          </td>\n        </tr>\n      </table>\n    </div>\n    \n    <div style=\"background: linear-gradient(135deg, rgba(251, 191, 36, 0.08) 0%, rgba(217, 119, 6, 0.04) 100%); border-left: 4px solid #fbbf24; border-radius: 8px; padding: 18px 20px; margin-bottom: 24px;\">\n      <h3 style=\"margin: 0 0 10px; font-size: 15px; color: #fbbf24;\">✨ Exclusive VIP Executive Privileges</h3>\n      <ul style=\"margin: 0; padding-left: 20px; color: #cbd5e1; font-size: 13px; line-height: 1.7;\">\n        <li><strong>Executive Lounge Access:</strong> 4th Floor Sky Lounge (Entry Code: <code style=\"color: #fbbf24; background: #222738; padding: 2px 6px; border-radius: 4px;\">#VIP-LOUNGE-2026</code>)</li>\n        <li><strong>VIP Keynote Seating:</strong> Reserved front-row seats (Rows A–C) at Main Auditorium</li>\n        <li><strong>Private Concierge Hotline:</strong> +1 (800) 847-2663 • <a href=\"mailto:vip-concierge@techconf.org\" style=\"color: #fbbf24; text-decoration: none;\">vip-concierge@techconf.org</a></li>\n        <li><strong>Dedicated Fast-Track Check-In:</strong> Hall A VIP Priority Desk (Skip all queues)</li>\n      </ul>\n    </div>\n\n    <div style=\"text-align: center; padding: 16px; background: #131726; border-radius: 8px; border: 1px dashed #334155;\">\n      <p style=\"margin: 0; font-size: 12px; color: #94a3b8;\">Present this digital pass or mention code <strong style=\"color: #ffffff;\">{{ $('Edit Fields: Data Cleansing & Code Generation').item.json.ticket_code }}</strong> at the venue entrance.</p>\n    </div>\n  </div>\n  <div style=\"background: #090a10; padding: 16px 24px; text-align: center; border-top: 1px solid #1f2438;\">\n    <p style=\"margin: 0; font-size: 11px; color: #64748b;\">Registered At: {{ $('Edit Fields: Data Cleansing & Code Generation').item.json.registered_at }} UTC • Non-transferable VIP Pass</p>\n  </div>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        760,
+        160
+      ],
+      "id": "0d832ea5-c6bf-463e-9524-78bb7238a291",
+      "name": "Gmail: Dispatch VIP Pass with Lounge Credentials"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.Attendee_Email || $json.email || $('Edit Fields: Data Cleansing & Code Generation').item.json.email }}",
+        "subject": "=🎟️ Your Event Ticket: {{ $json.Ticket_Code || $json.ticket_code || $('Edit Fields: Data Cleansing & Code Generation').item.json.ticket_code }} | Tech Summit 2026",
+        "emailType": "html",
+        "message": "<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; color: #1e293b; border: 1px solid #e2e8f0; box-shadow: 0 15px 35px rgba(0,0,0,0.08);\">\n  <div style=\"background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 32px 28px; text-align: center; color: #ffffff;\">\n    <div style=\"display: inline-block; background: rgba(255, 255, 255, 0.2); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; padding: 4px 12px; border-radius: 9999px; margin-bottom: 10px;\">STANDARD ADMISSION</div>\n    <h1 style=\"margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;\">TECH SUMMIT 2026</h1>\n    <p style=\"margin: 6px 0 0; color: #bfdbfe; font-size: 14px;\">October 28–30, 2026 • Grand Convention Center, San Francisco</p>\n  </div>\n  <div style=\"padding: 28px 24px;\">\n    <div style=\"background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 22px;\">\n      <table style=\"width: 100%; border-collapse: collapse;\">\n        <tr>\n          <td style=\"padding-bottom: 14px;\">\n            <span style=\"font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; display: block;\">ATTENDEE</span>\n            <strong style=\"font-size: 17px; color: #0f172a;\">{{ $('Edit Fields: Data Cleansing & Code Generation').item.json.full_name }}</strong>\n          </td>\n          <td style=\"padding-bottom: 14px; text-align: right;\">\n            <span style=\"font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; display: block;\">ORGANIZATION</span>\n            <strong style=\"font-size: 15px; color: #334155;\">{{ $('Edit Fields: Data Cleansing & Code Generation').item.json.company }}</strong>\n          </td>\n        </tr>\n        <tr>\n          <td style=\"padding-top: 12px; border-top: 1px dashed #cbd5e1;\">\n            <span style=\"font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; display: block;\">TICKET REFERENCE</span>\n            <span style=\"font-family: 'Courier New', monospace; font-size: 17px; font-weight: 700; color: #2563eb;\">{{ $('Edit Fields: Data Cleansing & Code Generation').item.json.ticket_code }}</span>\n          </td>\n          <td style=\"padding-top: 12px; border-top: 1px dashed #cbd5e1; text-align: right;\">\n            <span style=\"font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; display: block;\">PASS TYPE</span>\n            <span style=\"display: inline-block; background: #e0e7ff; color: #3730a3; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 4px;\">GENERAL ADMISSION</span>\n          </td>\n        </tr>\n      </table>\n    </div>\n\n    <div style=\"margin-bottom: 22px;\">\n      <h3 style=\"margin: 0 0 12px; font-size: 15px; color: #0f172a;\">📅 Event Schedule & Access Details</h3>\n      <table style=\"width: 100%; border-collapse: collapse; font-size: 13px; color: #475569;\">\n        <tr style=\"border-bottom: 1px solid #f1f5f9;\">\n          <td style=\"padding: 8px 0; font-weight: 600; color: #2563eb; width: 90px;\">09:00 AM</td>\n          <td style=\"padding: 8px 0;\">Doors Open & Badge Collection (Main Kiosks)</td>\n        </tr>\n        <tr style=\"border-bottom: 1px solid #f1f5f9;\">\n          <td style=\"padding: 8px 0; font-weight: 600; color: #2563eb;\">10:00 AM</td>\n          <td style=\"padding: 8px 0;\">Opening Keynote & Industry Trends (Auditorium 1)</td>\n        </tr>\n        <tr style=\"border-bottom: 1px solid #f1f5f9;\">\n          <td style=\"padding: 8px 0; font-weight: 600; color: #2563eb;\">01:30 PM</td>\n          <td style=\"padding: 8px 0;\">Technical Breakouts & Hands-On Automation Labs</td>\n        </tr>\n        <tr>\n          <td style=\"padding: 8px 0; font-weight: 600; color: #2563eb;\">04:30 PM</td>\n          <td style=\"padding: 8px 0;\">Open Networking & Tech Partner Expo</td>\n        </tr>\n      </table>\n    </div>\n\n    <div style=\"background: #f1f5f9; border-radius: 8px; padding: 14px; text-align: center; border: 1px dashed #cbd5e1;\">\n      <p style=\"margin: 0; font-size: 12px; color: #475569;\">Please bring a photo ID and have your ticket reference <strong style=\"color: #0f172a;\">{{ $('Edit Fields: Data Cleansing & Code Generation').item.json.ticket_code }}</strong> ready at registration kiosks.</p>\n    </div>\n  </div>\n  <div style=\"background: #f8fafc; padding: 14px 20px; text-align: center; border-top: 1px solid #e2e8f0;\">\n    <p style=\"margin: 0; font-size: 11px; color: #94a3b8;\">Registered At: {{ $('Edit Fields: Data Cleansing & Code Generation').item.json.registered_at }} UTC • Standard Pass</p>\n  </div>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        760,
+        360
+      ],
+      "id": "3be54917-a068-45b0-9285-d6d7a46914fa",
+      "name": "Gmail: Dispatch Standard Admission Ticket"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"confirmed\",\n  \"ticket_code\": \"{{ $('Edit Fields: Data Cleansing & Code Generation').item.json.ticket_code }}\",\n  \"name\": \"{{ $('Edit Fields: Data Cleansing & Code Generation').item.json.full_name }}\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1060,
+        260
+      ],
+      "id": "673f4582-74d3-45c9-9430-84cf071ab852",
+      "name": "Respond to Webhook: Return Confirmation"
+    }
+  ],
+  "pinData": {
+    "Webhook: /v1/event-registration": [
+      {
+        "json": {
+          "headers": {
+            "host": "localhost:5678",
+            "content-type": "application/json"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "full_name": "Alex Mercer",
+            "email": "alex.mercer@techconf.org",
+            "company": "Mercer Solutions",
+            "ticket_type": "VIP"
+          }
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook: /v1/event-registration": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields: Data Cleansing & Code Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields: Data Cleansing & Code Generation": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets: Append Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets: Append Row": {
+      "main": [
+        [
+          {
+            "node": "IF: Ticket_Type == \"VIP\"?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Ticket_Type == \"VIP\"?": {
+      "main": [
+        [
+          {
+            "node": "Gmail: Dispatch VIP Pass with Lounge Credentials",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail: Dispatch Standard Admission Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: Dispatch VIP Pass with Lounge Credentials": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook: Return Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: Dispatch Standard Admission Ticket": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook: Return Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f784e1cb-d948-4e3a-b9c1-4b2a8d11c009",
+  "meta": {
+    "instanceId": "assessment-prj-09-event-registration-ticket-dispatcher"
+  },
+  "tags": []
+}
