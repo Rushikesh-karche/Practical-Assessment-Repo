@@ -11,7 +11,8 @@
 | File | Description |
 | :--- | :--- |
 | **N8N_PRJ_09_Ticket_Dispatcher.json** | Complete, production-ready n8n workflow export with sticky notes, expressions, and pinData. |
-| **N8N_PRJ_09_Documentation_and_Test_Matrix.md** | Comprehensive project documentation, Google Sheets schema, Test Execution Matrix (TC-001 to TC-003), and a 5-minute video recording script. |
+| **
+8n_project_09_requirement_document.md** | Official assessment requirement document with BRD, PRD, SRS, Google Sheets schema, and Test Execution Matrix. |
 | **N8N_Project_09_Event_Registration_Ticket_Dispatcher.pdf** | Official assessment specification document. |
 
 ---
